@@ -5,16 +5,26 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use terminal_size::{Width, terminal_size};
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
+enum InputMode {
+    Normal,
+    Editing,
+}
+
+enum Tab {
+    Search,
+    Details,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     Search { query: String },
+}
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,6 +52,28 @@ struct AnimeAttributes {
     status: Option<String>,
     #[serde(rename = "episodeCount")]
     episode_count: Option<u16>,
+}
+
+struct App {
+    input: String,
+    input_mode: InputMode,
+    active_tab: Tab,
+    search_results: Vec<AnimeData>,
+    selected_anime_index: Option<usize>,
+    loading: bool,
+}
+
+impl App {
+    fn new() -> App {
+        App {
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            active_tab: Tab::Search,
+            search_results: Vec::new(),
+            selected_anime_index: None,
+            loading: false,
+        }
+    }
 }
 
 #[tokio::main]
