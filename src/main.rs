@@ -4,6 +4,14 @@ use colored::Colorize;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use terminal_size::{Width, terminal_size};
+use tui::{
+    Frame, Terminal,
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
+};
 
 enum InputMode {
     Normal,
@@ -94,6 +102,59 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
+    if app.loading {
+        let loading_text = Paragraph::new("Loading...")
+            .style(Style::default().fg(Color::Yellow))
+            .block(Block::default().borders(Borders::ALL).title("Results"));
+        f.render_widget(loading_text, area);
+        return;
+    }
+
+    if app.search_results.is_empty() {
+        let help_message = if app.input.is_empty() {
+            "Press 'e' to endter search mode, type your query, and press Enter to search."
+        } else {
+            "No results found. Try a different search term."
+        };
+
+        let help_text = Paragraph::new(help_message)
+            .style(Style::default().fg(Color::Gray))
+            .block(Block::default().borders(Borders::ALL).title("Results"));
+        f.render_widget(help_text, area);
+        return;
+    }
+
+    let items: Vec<ListItem> = app
+        .search_results
+        .iter()
+        .map(|anime| {
+            let rating = anime
+                .attributes
+                .average_rating
+                .as_ref()
+                .map(|r| format!(" ({}*)", r))
+                .unwrap_or_default();
+            let title = format!("{}{}", anime.attributes.cononical_title, rating);
+
+            ListItem::new(Spans::from(vec![Span::styled(title, Style::default())]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Results"))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    let mut state = tui::widgets::ListState::default();
+    state.select(app.selected_anime_index);
+    f.render_stateful_widget(list, area, &mut state);
 }
 
 async fn search_anime(query: &str) -> Result<AnimeResponse> {
