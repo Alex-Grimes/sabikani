@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
 fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
     if app.loading {
         let loading_text = Paragraph::new("Loading...")
-            .style(Style::default().fg(Color::Yellow))
+            .style(Style::default().fg(tui::style::Color::Yellow))
             .block(Block::default().borders(Borders::ALL).title("Results"));
         f.render_widget(loading_text, area);
         return;
@@ -121,7 +121,7 @@ fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
         };
 
         let help_text = Paragraph::new(help_message)
-            .style(Style::default().fg(Color::Gray))
+            .style(Style::default().fg(tui::style::Color::Gray))
             .block(Block::default().borders(Borders::ALL).title("Results"));
         f.render_widget(help_text, area);
         return;
@@ -147,7 +147,7 @@ fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
         .block(Block::default().borders(Borders::ALL).title("Results"))
         .highlight_style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(tui::style::Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol(">> ");
@@ -155,6 +155,80 @@ fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
     let mut state = tui::widgets::ListState::default();
     state.select(app.selected_anime_index);
     f.render_stateful_widget(list, area, &mut state);
+}
+
+fn render_details_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
+    if let Some(selected) = app.selected_anime_index {
+        if selected < app.search_results.len() {
+            let anime = &app.search_results[selected];
+            let attrs = &anime.attributes;
+
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(
+                    [
+                        Constraint::Length(3),
+                        Constraint::Length(3),
+                        Constraint::Min(0),
+                    ]
+                    .as_ref(),
+                )
+                .split(area);
+            // Title
+            let title = Paragraph::new(attrs.cononical_title.clone())
+                .style(
+                    Style::default()
+                        .fg(tui::style::Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .block(Block::default().borders(Borders::ALL).title("Title"));
+            f.render_widget(title, chunks[0]);
+
+            //Info
+            let mut info = vec![];
+
+            if let Some(rating) = &attrs.average_rating {
+                info.push(format!("Rating: {}/100", rating));
+            }
+
+            if let Some(eps) = attrs.episode_count {
+                info.push(format!("Episodes: {}", eps));
+            }
+
+            if let Some(status) = &attrs.status {
+                info.push(format!("Status: {}", status));
+            }
+
+            if let Some(start) = &attrs.start_date {
+                let date_str = if let Some(end) = &attrs.end_date {
+                    format!("Aired: {} to {}", start, end)
+                } else {
+                    format!("Aired: {} to present", start)
+                };
+
+                info.push(date_str);
+            }
+
+            let info_text = Paragraph::new(info.join(" | "))
+                .block(Block::default().borders(Borders::ALL).title("Info"));
+            f.render_widget(info_text, chunks[1]);
+
+            let synopsis = attrs
+                .synopsis
+                .clone()
+                .unwrap_or_else(|| "No synopsis available.".to_string());
+
+            let synopsis_text = Paragraph::new(synopsis)
+                .block(Block::default().borders(Borders::ALL).title("Synopsis"))
+                .wrap(tui::widgets::Wrap { trim: true });
+            f.render_widget(synopsis_text, chunks[2]);
+        }
+    } else {
+        let message = Paragraph::new("No anime selected.")
+            .style(Style::default().fg(tui::style::Color::Gray))
+            .block(Block::default().borders(Borders::ALL).title("Details"));
+        f.render_widget(message, area);
+    }
 }
 
 async fn search_anime(query: &str) -> Result<AnimeResponse> {
