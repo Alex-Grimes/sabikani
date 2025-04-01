@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -102,6 +104,63 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>, app: &Arc<Mutex<App>>) {
+    let app = app.blocking_lock();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(0),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let titles = vec!["Search [1]", "Details [2]"];
+    let tabs = Tabs::new(
+        titles
+            .iter()
+            .map(|t| Spans::from(Span::styled(*t, Style::default().fg(Color::Green))))
+            .collect(),
+    )
+    .block(Block::default().borders(Borders::ALL).title("Tabs"))
+    .highlight_style(
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    )
+    .select(match app.active_tab {
+        Tab::Search => 0,
+        Tab::Details => 1,
+    });
+    f.render_widget(tabs, chunks[0]);
+
+    let input = Paragraph::new(app.input.as_ref())
+        .style(match app.input_mode {
+            InputMode::Normal => Style::default(),
+            InputMode::Editing => Style::default().fg(Color::Yellow),
+        })
+        .block(Block::default().borders(Borders::ALL).title("Search"));
+    f.render_widget(input, chunks[1]);
+
+    if let InputMode::Editing = app.input_mode {
+        f.set_cursor(chunks[1].x + app.input.width() as u16, chunks[1].y + 1);
+    }
+
+    match app.active_tab {
+        Tab::Search => {
+            render_search_tab(f, chunks[2], &app);
+        }
+        Tab::Details => {
+            render_details_tab(f, chunks[2], &app);
+        }
+    }
 }
 
 fn render_search_tab<B: Backend>(f: &mut Frame<B>, area: Rect, app: &App) {
